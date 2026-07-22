@@ -1,152 +1,142 @@
 #! /usr/bin/env python3
 
-from argparse import ArgumentParser
-from pathlib import Path
+"""
+Zotify
+It's like youtube-dl, but for that other music platform.
+"""
 
-from zotify.app import App
-from zotify.config import CONFIG_PATHS, CONFIG_VALUES
-from zotify.utils import OptionalOrFalse
+import argparse
 
-VERSION = "1.2.0D"
+from zotify.app import client
+from zotify.config import Zotify, CONFIG_VALUES, DEPRECIATED_CONFIGS
+from zotify.termoutput import Printer
+
+
+class DepreciatedAction(argparse.Action):
+    def __init__(self, option_strings, dest, **kwargs):
+        if "help" in kwargs:
+            kwargs["help"] = "[DEPRECATED] " + kwargs["help"]
+        super().__init__(option_strings, dest, **kwargs)
+    
+    def __call__(self, parser, namespace, values, option_string=None):
+        Printer.depreciated_warning(option_string, self.help, CONFIG=False)
+        setattr(namespace, self.dest, values)
+
+
+DEPRECIATED_FLAGS = (
+    {"flags":    ('-d', '--download',),     "type":    str,     "help":    'Use `--file` (`-f`) instead'},
+)
 
 
 def main():
-    parser = ArgumentParser(
-        prog="zotify",
-        description="A fast and customizable music and podcast downloader",
-    )
-    group = parser.add_mutually_exclusive_group(required=True)
-
-    group.add_argument(
-        "-v",
-        "--version",
-        action="store_true",
-        help="Print version and exit",
-    )
-    parser.add_argument(
-        "--debug",
-        action="store_true",
-        help="Display full tracebacks",
-    )
-    parser.add_argument(
-        "--config",
-        type=Path,
-        default=CONFIG_PATHS["conf"],
-        help="Specify the config.json location",
-    )
-    parser.add_argument(
-        "-l",
-        "--library",
-        type=Path,
-        help="Specify a path to the root of a music/playlist/podcast library",
-    )
-    parser.add_argument(
-        "-o", "--output", type=str, help="Specify the output file structure/format"
-    )
-    parser.add_argument(
-        "-c",
-        "--category",
-        type=str,
-        choices=["album", "artist", "playlist", "track", "show", "episode"],
-        default=["album", "artist", "playlist", "track", "show", "episode"],
-        nargs="+",
-        help="Searches for only this type",
-    )
-    parser.add_argument("--username", type=str, default="", help="Account username")
-    parser.add_argument("--token", type=str, default="", help="Account token")
-    parser.add_argument(
-        "-m",
-        "--match",
-        action="store_true",
-        help="Match downloaded track filenames to corresponding tracks in collection",
-    )
-    group.add_argument(
-        "urls",
-        type=str,
-        default="",
-        nargs="*",
-        help="Downloads the track, album, playlist, podcast, episode or artist from a URL or URI. Accepts multiple options.",
-    )
-    group.add_argument(
-        "-d",
-        "--download",
-        type=str,
-        nargs="*",
-        help="Downloads tracks, playlists and albums from the URLs written in the file passed.",
-    )
-    group.add_argument(
-        "-f",
-        "--followed",
-        action="store_true",
-        help="Download all songs from your followed artists.",
-    )
-    group.add_argument(
-        "-lt",
-        "--liked-tracks",
-        action="store_true",
-        help="Download all of your liked songs.",
-    )
-    group.add_argument(
-        "-le",
-        "--liked-episodes",
-        action="store_true",
-        help="Download all of your liked episodes.",
-    )
-    group.add_argument(
-        "-p",
-        "--playlist",
-        action="store_true",
-        help="Download a saved playlists from your account.",
-    )
-    group.add_argument(
-        "-s",
-        "--search",
-        type=str,
-        nargs="+",
-        help="Search for a specific track, album, playlist, artist or podcast",
-    )
-
-    for k, v in CONFIG_VALUES.items():
-        if v["type"] == bool:
-            parser.add_argument(
-                *v["args"],
-                action=OptionalOrFalse,
-                help=v["help"],
-            )
-        else:
-            try:
-                parser.add_argument(
-                    *v["args"],
-                    type=v["type"],
-                    choices=v["choices"],
-                    default=None,
-                    help=v["help"],
-                )
-            except KeyError:
-                parser.add_argument(
-                    *v["args"],
-                    type=v["type"],
-                    default=None,
-                    help=v["help"],
-                )
-
-    parser.set_defaults(func=App)
+    parser = argparse.ArgumentParser(prog='zotify',
+        description='A music and podcast downloader needing only Python and FFMPEG.')
+    
+    parser.register('action', 'depreciated_ignore_warn', DepreciatedAction)
+    
+    # no args
+    parser.add_argument('--version',
+                        action='version',
+                        version=f'Zotify {Zotify.VERSION}',
+                        help='Show the version of Zotify')
+    parser.add_argument('--persist',
+                        action='store_true',
+                        dest='persist',
+                        help='Perform multiple queries with a single persistent Session')
+    parser.add_argument('--update-config',
+                        action='store_true',
+                        dest='update_config',
+                        help='Updates the `config.json` file while keeping all current settings unchanged')
+    parser.add_argument('--update-archive',
+                        action='store_true',
+                        dest='update_archive',
+                        help='Updates the `.song_archive` file entries with full paths while keeping non-findable entries unchanged')
+    parser.add_argument('--debug',
+                        action='store_true',
+                        dest='debug',
+                        help='Enable debug mode, prints extra information and creates a `config_DEBUG.json` file')
+    parser.add_argument('-ns', '--no-splash',
+                        action='store_true',
+                        dest='no_splash',
+                        help='Suppress the splash screen when loading')
+    
+    # with args
+    parser.add_argument('-c', '--config', '--config-location',
+                        type=str,
+                        dest='config_location',
+                        help='Specify a directory containing a Zotify `config.json` file to load settings')
+    parser.add_argument('-u', '--username',
+                        type=str,
+                        dest='username',
+                        help='Account username')
+    parser.add_argument('--token',
+                        type=str,
+                        dest='token',
+                        help='Authentication token')
+    
+    group = parser.add_mutually_exclusive_group(required=False)
+    group.add_argument('urls',
+                       type=str,
+                       # action='extend',
+                       nargs='*',
+                       default="",
+                       help='Download track(s), album(s), playlist(s), podcast episode(s), or artist(s) specified by the URL(s) passed as a command line argument(s). If an artist\'s URL is given, all albums by the specified artist will be downloaded. Can take multiple URLs as multiple arguments.')
+    group.add_argument('-f', '--file',
+                       type=str,
+                       dest='file_of_urls',
+                       help='Download all tracks/albums/episodes/playlists URLs within the file passed as argument')
+    group.add_argument('-l', '--liked', '--liked-songs', 
+                       action='store_true',
+                       dest='liked_songs',
+                       help='Download all Liked Songs on your account')
+    group.add_argument('-p', '--playlist', '--playlists', '--user-playlists',
+                       action='store_true',
+                       dest='user_playlists',
+                       help='Download playlist(s) created/saved by your account (interactive)')
+    group.add_argument('-a', '--artist', '--artists', '--followed-artists',
+                       action='store_true',
+                       dest='followed_artists',
+                       help='Download all songs by followed artist(s) (interactive)')
+    group.add_argument('-m', '--album', '--albums', '--followed-albums',
+                       action='store_true',
+                       dest='followed_albums',
+                       help='Download followed albums (interactive)')
+    group.add_argument('-s', '--search',
+                       type=str,
+                       dest='search',
+                       nargs='?',
+                       const=' ',
+                       help='Search tracks/albums/artists/playlists based on argument (interactive)')
+    group.add_argument('-v', '--verify-library',
+                       action='store_true',
+                       dest='verify_library',
+                       help='Check metadata for all tracks in ROOT_PATH or listed in SONG_ARCHIVE, updating the metadata if necessary. This will not download any new tracks, but may take a very, very long time.')
+    modes = group._group_actions.copy()
+    
+    for flag in DEPRECIATED_FLAGS: 
+        group.add_argument(*flag["flags"],
+                           type=flag["type"],
+                           help=flag["help"],
+                           action='depreciated_ignore_warn')
+    
+    for key in DEPRECIATED_CONFIGS:
+        parser.add_argument(*DEPRECIATED_CONFIGS[key]['arg'],
+                            type=str,
+                            action='depreciated_ignore_warn',
+                            help=f'Delete the `{key}` flag from the commandline call'
+                            )
+    
+    for key in CONFIG_VALUES:
+        parser.add_argument(*CONFIG_VALUES[key]['arg'],
+                            type=str, #type conversion occurs in config.parse_arg_value()
+                            dest=key.lower(),
+                            default=None,
+                            )
+    
     args = parser.parse_args()
-    if args.version:
-        print(VERSION)
-    elif args.debug:
-        args.func(args)
-    else:
-        try:
-            args.func(args)
-        except Exception:
-            from traceback import format_exc
-
-            print(format_exc().splitlines()[-1])
-            exit(1)
-        except KeyboardInterrupt:
-            exit(130)
+    Zotify.boot(args)
+    client(args, modes)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

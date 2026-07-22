@@ -1,8 +1,0 @@
-librespot@git+https://github.com/kokarare1212/librespot-python
-https://github.com/DraftKinner/music-tag/archive/refs/tags/v0.4.7.zip
-mutagen
-Pillow
-pkce
-requests
-tqdm
-limits

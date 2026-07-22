@@ -1,3 +1,38 @@
 [build-system]
-requires = ["setuptools>=61.0", "wheel"]
+requires = [
+  "setuptools >= 40.9.0",
+  "wheel",
+]
 build-backend = "setuptools.build_meta"
+
+[project]
+name = "zotify"
+version = "0.17.4"
+description = "A highly customizable music and podcast downloader"
+authors = [
+  { name = "Zotify Contributors" },
+  { name = "Googolplexed" },
+]
+requires-python = ">=3.10"
+license = "Unlicense"
+license-files = ["LICENSE"]
+readme = "README.md"
+keywords = ["python", "music", "podcast", "downloader"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Operating System :: OS Independent"
+]
+dependencies = [
+  "librespot @ git+https://github.com/Googolplexed0/librespot-python.git",
+  "ffmpy",
+  "music_tag",
+  "Pillow",
+  "pkce",
+  "protobuf==3.20.1",
+  "pwinput",
+  "tabulate[widechars]",
+  "tqdm"
+]
+
+[project.scripts]
+zotify = "zotify.__main__:main"
