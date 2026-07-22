@@ -2,7 +2,7 @@ from math import floor
 from pathlib import Path
 from time import time, sleep
 
-from librespot.core import PlayableContentFeeder
+from librespot.audio import LoadedStream
 from librespot.metadata import AlbumId, ArtistId
 from librespot.proto import Metadata_pb2 as Metadata
 from librespot.structure import GeneralAudioStream
@@ -167,10 +167,10 @@ class Playable:
         ).content
 
 
-class Track(PlayableContentFeeder.LoadedStream, Playable):
+class Track(LoadedStream, Playable):
     __lyrics: Lyrics
 
-    def __init__(self, track: PlayableContentFeeder.LoadedStream, api):
+    def __init__(self, track: LoadedStream, api):
         super(Track, self).__init__(
             track.track,
             track.input_stream,
@@ -279,8 +279,8 @@ class Track(PlayableContentFeeder.LoadedStream, Playable):
             )
 
 
-class Episode(PlayableContentFeeder.LoadedStream, Playable):
-    def __init__(self, episode: PlayableContentFeeder.LoadedStream, api):
+class Episode(LoadedStream, Playable):
+    def __init__(self, episode: LoadedStream, api):
         super(Episode, self).__init__(
             episode.episode,
             episode.input_stream,
